@@ -36,6 +36,9 @@ def build_example(annotation, class_map):
     difficult_obj = []
     if 'object' in annotation:
         for obj in annotation['object']:
+            if obj['name'] not in class_map:
+                continue 
+
             difficult = bool(int(obj['difficult']))
             difficult_obj.append(int(difficult))
 
@@ -47,6 +50,9 @@ def build_example(annotation, class_map):
             classes.append(class_map[obj['name']])
             truncated.append(int(obj['truncated']))
             views.append(obj['pose'].encode('utf8'))
+
+    if 0 == len(classes):
+        return None
 
     example = tf.train.Example(features=tf.train.Features(feature={
         'image/height': tf.train.Feature(int64_list=tf.train.Int64List(value=[height])),
@@ -102,6 +108,8 @@ def main(_argv):
         annotation_xml = lxml.etree.fromstring(open(annotation_xml).read())
         annotation = parse_xml(annotation_xml)['annotation']
         tf_example = build_example(annotation, class_map)
+        if tf_example is None:
+            continue
         writer.write(tf_example.SerializeToString())
     writer.close()
     logging.info("Done")

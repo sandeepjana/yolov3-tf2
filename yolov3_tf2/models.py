@@ -2,6 +2,7 @@ from absl import flags
 from absl.flags import FLAGS
 import numpy as np
 import tensorflow as tf
+import tensorflow.keras.backend as K
 from tensorflow.keras import Model
 from tensorflow.keras.layers import (
     Add,
@@ -100,7 +101,7 @@ def DarknetTiny(name=None):
 def YoloConv(filters, name=None):
     def yolo_conv(x_in):
         if isinstance(x_in, tuple):
-            inputs = Input(x_in[0].shape[1:]), Input(x_in[1].shape[1:])
+            inputs = Input(K.int_shape(x_in[0])[1:]), Input(K.int_shape(x_in[1])[1:])
             x, x_skip = inputs
 
             # concat with skip connection
@@ -108,7 +109,7 @@ def YoloConv(filters, name=None):
             x = UpSampling2D(2)(x)
             x = Concatenate()([x, x_skip])
         else:
-            x = inputs = Input(x_in.shape[1:])
+            x = inputs = Input(K.int_shape(x_in)[1:])
 
         x = DarknetConv(x, filters, 1)
         x = DarknetConv(x, filters * 2, 3)
@@ -122,13 +123,14 @@ def YoloConv(filters, name=None):
 def YoloConvTiny(filters, name=None):
     def yolo_conv(x_in):
         if isinstance(x_in, tuple):
-            inputs = Input(x_in[0].shape[1:]), Input(x_in[1].shape[1:])
+            inputs = Input(K.int_shape(x_in[0])[1:]), Input(K.int_shape(x_in[1])[1:])
             x, x_skip = inputs
 
             # concat with skip connection
             x = DarknetConv(x, filters, 1)
             x = UpSampling2D(2)(x)
             x = Concatenate()([x, x_skip])
+            x_in = [x_in[0], x_in[1]]
         else:
             x = inputs = Input(x_in.shape[1:])
             x = DarknetConv(x, filters, 1)
@@ -139,10 +141,10 @@ def YoloConvTiny(filters, name=None):
 
 def YoloOutput(filters, anchors, classes, name=None):
     def yolo_output(x_in):
-        x = inputs = Input(x_in.shape[1:])
+        x = inputs = Input(K.int_shape(x_in)[1:])
         x = DarknetConv(x, filters * 2, 3)
         x = DarknetConv(x, anchors * (classes + 5), 1, batch_norm=False)
-        x = Lambda(lambda x: tf.reshape(x, (-1, tf.shape(x)[1], tf.shape(x)[2],
+        x = Lambda(lambda x: K.reshape(x, (-1, K.shape(x)[1], K.shape(x)[2],
                                             anchors, classes + 5)))(x)
         return tf.keras.Model(inputs, x, name=name)(x_in)
     return yolo_output
@@ -187,7 +189,13 @@ def yolo_nms(outputs, anchors, masks, classes):
     confidence = tf.concat(c, axis=1)
     class_probs = tf.concat(t, axis=1)
 
-    scores = confidence * class_probs
+    # https://github.com/zzh8829/yolov3-tf2/issues/70
+    # scores = confidence * class_probs
+    if classes > 1:
+        scores = confidence * class_probs
+    else:
+        scores = confidence
+
     boxes, scores, classes, valid_detections = tf.image.combined_non_max_suppression(
         boxes=tf.reshape(bbox, (tf.shape(bbox)[0], -1, 1, 4)),
         scores=tf.reshape(
@@ -244,8 +252,9 @@ def YoloV3Tiny(size=None, channels=3, anchors=yolo_tiny_anchors,
     x = YoloConvTiny(128, name='yolo_conv_1')((x, x_8))
     output_1 = YoloOutput(128, len(masks[1]), classes, name='yolo_output_1')(x)
 
+    model_name = 'yolov3_tiny_' + tf.__version__
     if training:
-        return Model(inputs, (output_0, output_1), name='yolov3')
+        return Model(inputs, (output_0, output_1), name=model_name + '_body')
 
     boxes_0 = Lambda(lambda x: yolo_boxes(x, anchors[masks[0]], classes),
                      name='yolo_boxes_0')(output_0)
@@ -253,7 +262,7 @@ def YoloV3Tiny(size=None, channels=3, anchors=yolo_tiny_anchors,
                      name='yolo_boxes_1')(output_1)
     outputs = Lambda(lambda x: yolo_nms(x, anchors, masks, classes),
                      name='yolo_nms')((boxes_0[:3], boxes_1[:3]))
-    return Model(inputs, outputs, name='yolov3_tiny')
+    return Model(inputs, outputs, name=model_name)
 
 
 def YoloLoss(anchors, classes=80, ignore_thresh=0.5):
