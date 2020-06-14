@@ -21,16 +21,23 @@ YOLOV3_TINY_LAYER_LIST = [
     'yolo_output_1',
 ]
 
+YOLOV2_LITE_LAYER_LIST = [
+    'yolo_darknet_lite',
+    'yolo_output_0'
+]
 
-def load_darknet_weights(model, weights_file, tiny=False):
+
+def load_darknet_weights(model, weights_file, tiny=False, lite=False):
     wf = open(weights_file, 'rb')
     major, minor, revision, seen, _ = np.fromfile(wf, dtype=np.int32, count=5)
 
     if tiny:
         layers = YOLOV3_TINY_LAYER_LIST
+    elif lite:
+        layers = YOLOV2_LITE_LAYER_LIST
     else:
         layers = YOLOV3_LAYER_LIST
-
+        
     for layer_name in layers:
         sub_model = model.get_layer(layer_name)
         for i, layer in enumerate(sub_model.layers):

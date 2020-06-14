@@ -1,6 +1,7 @@
 from absl import flags
 from absl.flags import FLAGS
 import numpy as np
+import functools
 import tensorflow as tf
 import tensorflow.keras.backend as K
 from tensorflow.keras import Model
@@ -38,8 +39,13 @@ yolo_tiny_anchors = np.array([(10, 14), (23, 27), (37, 58),
                              np.float32) / 416
 yolo_tiny_anchor_masks = np.array([[3, 4, 5], [0, 1, 2]])
 
+yolo_lite_anchors = np.array([(1.08,1.19),  (3.42,4.41),  (6.63,11.38),
+                            (9.42,5.11),  (16.62,10.52)],
+                            np.float32) * 7 / 224
+yolo_lite_anchor_masks = np.array([[0, 1, 2, 3, 4]])
 
-def DarknetConv(x, filters, size, strides=1, batch_norm=True):
+
+def DarknetConv(x, filters, size, strides=1, batch_norm=True, enforce_relu=False):
     if strides == 1:
         padding = 'same'
     else:
@@ -51,6 +57,9 @@ def DarknetConv(x, filters, size, strides=1, batch_norm=True):
     if batch_norm:
         x = BatchNormalization()(x)
         x = LeakyReLU(alpha=0.1)(x)
+    elif enforce_relu:
+        x = LeakyReLU(alpha=0.1)(x)
+
     return x
 
 
@@ -77,7 +86,7 @@ def Darknet(name=None):
     x = x_36 = DarknetBlock(x, 256, 8)  # skip connection
     x = x_61 = DarknetBlock(x, 512, 8)
     x = DarknetBlock(x, 1024, 4)
-    return tf.keras.Model(inputs, (x_36, x_61, x), name=name)
+    return Model(inputs, (x_36, x_61, x), name=name)
 
 
 def DarknetTiny(name=None):
@@ -95,7 +104,23 @@ def DarknetTiny(name=None):
     x = DarknetConv(x, 512, 3)
     x = MaxPool2D(2, 1, 'same')(x)
     x = DarknetConv(x, 1024, 3)
-    return tf.keras.Model(inputs, (x_8, x), name=name)
+    return Model(inputs, (x_8, x), name=name)
+
+
+def DarknetLite(size=None, name=None):
+    x = inputs = Input((size, size, 3))
+    DarknetConvNoBN = functools.partial(DarknetConv, batch_norm=False, enforce_relu=True)
+    x = DarknetConvNoBN(x, 16, 3)
+    x = MaxPool2D(2, 2, 'same')(x)
+    x = DarknetConvNoBN(x, 32, 3)
+    x = MaxPool2D(2, 2, 'same')(x)
+    x = DarknetConvNoBN(x, 64, 3)
+    x = MaxPool2D(2, 2, 'same')(x)
+    x = DarknetConvNoBN(x, 128, 3)
+    x = MaxPool2D(2, 2, 'same')(x)
+    x = DarknetConvNoBN(x, 128, 3)
+    x = MaxPool2D(2, 2, 'same')(x)
+    return Model(inputs, x, name=name)
 
 
 def YoloConv(filters, name=None):
@@ -146,7 +171,21 @@ def YoloOutput(filters, anchors, classes, name=None):
         x = DarknetConv(x, anchors * (classes + 5), 1, batch_norm=False)
         x = Lambda(lambda x: K.reshape(x, (-1, K.shape(x)[1], K.shape(x)[2],
                                             anchors, classes + 5)))(x)
-        return tf.keras.Model(inputs, x, name=name)(x_in)
+        return Model(inputs, x, name=name)(x_in)
+    return yolo_output
+
+
+# https://github.com/reu2018DL/YOLO-LITE
+def YoloOutputLite(filters, num_anchors, classes, name=None):
+    def yolo_output(x_in):
+        x = inputs = Input(K.int_shape(x_in)[1:])
+        x = DarknetConv(x, filters * 2, 3, batch_norm=False,
+            enforce_relu=True)
+        x = DarknetConv(x, num_anchors * (classes + 5), 1, 
+            batch_norm=False, enforce_relu=False)
+        x = Lambda(lambda x: K.reshape(x, (-1, K.shape(x)[1], K.shape(x)[2],
+                                            num_anchors, classes + 5)))(x)
+        return Model(inputs, x, name=name)(x_in)
     return yolo_output
 
 
@@ -263,6 +302,26 @@ def YoloV3Tiny(size=None, channels=3, anchors=yolo_tiny_anchors,
     outputs = Lambda(lambda x: yolo_nms(x, anchors, masks, classes),
                      name='yolo_nms')((boxes_0[:3], boxes_1[:3]))
     return Model(inputs, outputs, name=model_name)
+
+
+def YoloV2Lite(size=None, channels=3, anchors=yolo_lite_anchors,
+               masks=yolo_lite_anchor_masks, classes=80, training=False):
+    x = inputs = Input((size, size, channels), name='input')
+
+    m = DarknetLite(size=size, name='yolo_darknet_lite')
+    x = m(x)
+
+    output_0 = YoloOutputLite(128, len(masks[0]), classes, name='yolo_output_0')(x)
+
+    if training:
+        return Model(inputs, output_0, name='yolo_lite_body')    
+
+    boxes_0 = Lambda(lambda x: yolo_boxes(x, anchors[masks[0]], classes),
+                     name='yolo_boxes_0')(output_0)
+    outputs = Lambda(lambda x: yolo_nms(x, anchors, masks, classes),
+                     name='yolo_nms')((boxes_0[:3]))
+
+    return Model(inputs, outputs, name='yolo_lite')                     
 
 
 def YoloLoss(anchors, classes=80, ignore_thresh=0.5):

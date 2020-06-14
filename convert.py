@@ -1,7 +1,7 @@
 from absl import app, flags, logging
 from absl.flags import FLAGS
 import numpy as np
-from yolov3_tf2.models import YoloV3, YoloV3Tiny
+from yolov3_tf2.models import YoloV3, YoloV3Tiny, YoloV2Lite
 from yolov3_tf2.utils import load_darknet_weights
 import tensorflow as tf
 import cv2
@@ -15,9 +15,11 @@ flags.DEFINE_string('weights', './data/yolov3.weights', 'path to weights file')
 flags.DEFINE_boolean('from_h5', False, 'source of weights')
 flags.DEFINE_string('output', './checkpoints/yolov3.tf', 'path to output')
 flags.DEFINE_boolean('tiny', False, 'yolov3 or yolov3-tiny')
+flags.DEFINE_boolean('lite', False, 'yolov3 or yolov2-lite')
 flags.DEFINE_integer('num_classes', 80, 'number of classes in the model')
 flags.DEFINE_integer('size', 0, 'Default is None')
 flags.DEFINE_boolean('training', False, 'training flag')
+
 
 def predict(model):
     size = model.input_shape[1]
@@ -48,15 +50,18 @@ def main(_argv):
 
     if FLAGS.tiny:
         yolo = YoloV3Tiny(size=size, classes=FLAGS.num_classes, training=FLAGS.training)
+    elif FLAGS.lite:
+        yolo = YoloV2Lite(size=size, classes=FLAGS.num_classes, training=FLAGS.training)
     else:
         yolo = YoloV3(size=size, classes=FLAGS.num_classes, training=FLAGS.training)
+
     yolo.summary()
     logging.info('model created')
 
     if FLAGS.from_h5:
     	yolo.load_weights(FLAGS.weights)
     else:
-        load_darknet_weights(yolo, FLAGS.weights, FLAGS.tiny)
+        load_darknet_weights(yolo, FLAGS.weights, FLAGS.tiny, FLAGS.lite)
         logging.info('weights loaded')
         
     imsize = 320 if size is None else size
