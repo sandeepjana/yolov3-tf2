@@ -52,7 +52,7 @@ def build_example(annotation, class_map):
             views.append(obj['pose'].encode('utf8'))
 
     if 0 == len(classes):
-        return None
+        return None, None
 
     example = tf.train.Example(features=tf.train.Features(feature={
         'image/height': tf.train.Feature(int64_list=tf.train.Int64List(value=[height])),
@@ -74,7 +74,16 @@ def build_example(annotation, class_map):
         'image/object/truncated': tf.train.Feature(int64_list=tf.train.Int64List(value=truncated)),
         'image/object/view': tf.train.Feature(bytes_list=tf.train.BytesList(value=views)),
     }))
-    return example
+
+    csv = [img_path]
+    info = [a for a in zip(xmin, ymin, xmax, ymax, classes)]
+    for box in info:
+        csv.extend(['{:.4f}'.format(a) for a in box[:4]])
+        csv.extend([str(box[4])])
+    
+    csv_line = ','.join(csv)
+
+    return example, csv_line
 
 
 def parse_xml(xml):
@@ -98,6 +107,7 @@ def main(_argv):
     logging.info("Class mapping loaded: %s", class_map)
 
     writer = tf.io.TFRecordWriter(FLAGS.output_file)
+    csv_writer = open(os.path.splitext(FLAGS.output_file)[0] + '.csv', 'w')
     image_list = open(os.path.join(
         FLAGS.data_dir, 'ImageSets', 'Main', 'aeroplane_%s.txt' % FLAGS.split)).read().splitlines()
     logging.info("Image list loaded: %d", len(image_list))
@@ -107,11 +117,13 @@ def main(_argv):
             FLAGS.data_dir, 'Annotations', name + '.xml')
         annotation_xml = lxml.etree.fromstring(open(annotation_xml).read())
         annotation = parse_xml(annotation_xml)['annotation']
-        tf_example = build_example(annotation, class_map)
+        tf_example, csv_line = build_example(annotation, class_map)
         if tf_example is None:
             continue
         writer.write(tf_example.SerializeToString())
+        csv_writer.write(csv_line + '\n')
     writer.close()
+    csv_writer.close()
     logging.info("Done")
 
 

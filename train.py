@@ -17,6 +17,8 @@ from yolov3_tf2.models import (
 )
 from yolov3_tf2.utils import freeze_all
 import yolov3_tf2.dataset as dataset
+from yolov3_tf2.data_generator import data_generator
+
 
 flags.DEFINE_string('dataset', '', 'path to dataset')
 flags.DEFINE_string('val_dataset', '', 'path to validation dataset')
@@ -51,6 +53,34 @@ flags.DEFINE_integer('weights_num_classes', None, 'specify num class for `weight
                      'useful in transfer learning with different number of classes')
 
 
+def get_dataset(anchors, anchor_masks, is_train=True):
+    file = FLAGS.dataset
+    from_generator = False
+    
+    if '.tfrecord' in file:
+        d = dataset.load_tfrecord_dataset(file, FLAGS.classes, FLAGS.size)
+    elif file.endswith('.csv'):
+        from_generator = True
+        d = data_generator(file, FLAGS.size, is_train)
+    else:
+        d = dataset.load_fake_dataset()
+
+    if from_generator:
+        d = d.batch(FLAGS.batch_size)
+        d = d.map(lambda x, y: (x, 
+            dataset.transform_targets(y, anchors, anchor_masks, FLAGS.size)))
+    else:
+        if is_train:
+            d = d.shuffle(buffer_size=512)
+        d = d.batch(FLAGS.batch_size)
+        d = d.map(lambda x, y: (
+            dataset.transform_images(x, FLAGS.size),
+            dataset.transform_targets(y, anchors, anchor_masks, FLAGS.size)))
+
+    d = d.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
+    return d
+
+
 def main(_argv):
     physical_devices = tf.config.experimental.list_physical_devices('GPU')
     if len(physical_devices) > 0:
@@ -66,26 +96,8 @@ def main(_argv):
         anchors = yolo_anchors
         anchor_masks = yolo_anchor_masks
 
-    train_dataset = dataset.load_fake_dataset()
-    if FLAGS.dataset:
-        train_dataset = dataset.load_tfrecord_dataset(
-            FLAGS.dataset, FLAGS.classes, FLAGS.size)
-    train_dataset = train_dataset.shuffle(buffer_size=512)
-    train_dataset = train_dataset.batch(FLAGS.batch_size)
-    train_dataset = train_dataset.map(lambda x, y: (
-        dataset.transform_images(x, FLAGS.size),
-        dataset.transform_targets(y, anchors, anchor_masks, FLAGS.size)))
-    train_dataset = train_dataset.prefetch(
-        buffer_size=tf.data.experimental.AUTOTUNE)
-
-    val_dataset = dataset.load_fake_dataset()
-    if FLAGS.val_dataset:
-        val_dataset = dataset.load_tfrecord_dataset(
-            FLAGS.val_dataset, FLAGS.classes, FLAGS.size)
-    val_dataset = val_dataset.batch(FLAGS.batch_size)
-    val_dataset = val_dataset.map(lambda x, y: (
-        dataset.transform_images(x, FLAGS.size),
-        dataset.transform_targets(y, anchors, anchor_masks, FLAGS.size)))
+    train_dataset = get_dataset(anchors, anchor_masks, is_train=True)
+    val_dataset = get_dataset(anchors, anchor_masks, is_train=False)
 
     # Configure the model for transfer learning
     if FLAGS.transfer != 'none':

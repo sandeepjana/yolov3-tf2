@@ -36,7 +36,7 @@ def predict(model):
     filename = os.path.join('unversion', os.path.basename(model.name) + '_pred.txt')
     print('writing predictions to ' + filename)
     with open(filename, 'w') as f:
-        f.write(str(p))    
+        f.write(str(p))
 
 
 

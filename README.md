@@ -369,16 +369,17 @@ It is pretty much impossible to implement this from the yolov3 paper alone. I ha
 
 ## Command gist
 
-python train.py --dataset C:\stuff\datasets\pascal\VOCtrainval_11-May-2012\VOCdevkit\voc2012_train.tfrecord --val_dataset C:\stuff\datasets\pascal\VOCtrainval_11-May-2012\VOCdevkit\voc2012_val.tfrecord --classes ./data/voc2012.names --num_classes 20 --mode fit --transfer darknet --batch_size 8 --epochs 10 --weights ./checkpoints/yolov3-tiny.h5 --weights_num_classes 80  --tiny
+### tfrecord/csv preparation
 
-python detect.py --classes ./data/voc2012.names  --num_classes 20  --weights  C:\stuff\coderunner\yolov3-tf2\checkpoints\yolov3_train_7.tf --tfrecord C:\stuff\datasets\pascal\VOCtrainval_11-May-2012\VOCdevkit\voc2012_val.tfrecord --tiny
+python tools/voc2012.py --data_dir ..\VOCdevkit\VOC2012  --split train --output_file ./data/voc2012_train.tfrecord
 
-----
+python tools/voc2012.py --data_dir ..\VOCdevkit\VOC2012  --split val --output_file ./data/voc2012_val.tfrecord
+
 
 python convert.py --weights ./data/yolov3-tiny.weights --output ./checkpoints/yolov3-tiny.tf --tiny
 
 Train from imagenet weights with feature extractor (darknet) frozen:
-python train.py --dataset C:\stuff\datasets\pascal\VOCtrainval_11-May-2012\VOCdevkit\voc2012_train.tfrecord --val_dataset C:\stuff\datasets\pascal\VOCtrainval_11-May-2012\VOCdevkit\voc2012_val.tfrecord --classes ./data/voc2012.names --num_classes 20 --mode fit --transfer darknet --batch_size 8 --epochs 10 --weights ./checkpoints/yolov3-tiny.tf --weights_num_classes 80  --tiny
+python train.py --dataset C:\stuff\datasets\pascal\VOCtrainval_11-May-2012\VOCdevkit\voc2012_train.tfrecord --val_dataset C:\stuff\datasets\pascal\VOCtrainval_11-May-2012\VOCdevkit\voc2012_val.tfrecord --classes ./data/voc2012.names --num_classes 20 --mode fit --transfer yolo_darknet --batch_size 8 --epochs 10 --weights ./checkpoints/yolov3-tiny.tf --weights_num_classes 80  --tiny
 
 Training end to end from a checkpoint: 
 https://github.com/zzh8829/yolov3-tf2/issues/247
@@ -388,7 +389,7 @@ python train.py --dataset C:\stuff\datasets\pascal\VOCtrainval_11-May-2012\VOCde
 
 python detect.py --classes ./data/voc2012.names  --num_classes 20  --weights  C:\stuff\coderunner\yolov3-tf2\checkpoints\yolov3_train_7.tf --tfrecord C:\stuff\datasets\pascal\VOCtrainval_11-May-2012\VOCdevkit\voc2012_val.tfrecord --tiny
 
-python -m pdb train.py --dataset C:\stuff\datasets\pascal\VOCtrainval_11-May-2012\VOCdevkit\voc2012_train.tfrecord --val_dataset C:\stuff\datasets\pascal\VOCtrainval_11-May-2012\VOCdevkit\voc2012_val.tfrecord --classes ./data/voc2012.names --num_classes 20 --mode fit --batch_size 8 --epochs 10 --weights ./checkpoints/works/yolov3_train_7.tf --weights_num_classes 20  --tiny --learning_rate 1e-6 --transfer fine_tune
+python -m pdb train.py --dataset C:\stuff\datasets\pascal\VOCtrainval_11-May-2012\VOCdevkit\voc2012_train.tfrecord --val_dataset C:\stuff\datasets\pascal\VOCtrainval_11-May-2012\VOCdevkit\voc2012_val.tfrecord --classes ./data/voc2012.names --num_classes 20 --mode eager_fit --batch_size 8 --epochs 10 --weights ./checkpoints/works/yolov3_train_7.tf --weights_num_classes 20  --tiny --learning_rate 1e-6 --transfer fine_tune
 
 ------- one class -------
 
@@ -414,12 +415,12 @@ python convert.py --from_h5 --weights ./checkpoints/yolov3_train_7.tf --output .
 
 python convert.py --weights ./data/yolov3-tiny.weights --tiny --training --output ./checkpoints/yolov3-tiny.tf
 
-python train.py --dataset ./data/oxford_hands_train.tfrecord --val_dataset ./data/oxford_hands_test.tfrecord  --classes ./data/oxford_hands.names --num_classes 1 --mode fit --transfer darknet --batch_size 8 --epochs 10 --weights ./checkpoints/yolov3-tiny.tf --weights_num_classes 80  --tiny --size 288
+python train.py --dataset ./data/oxford_hands_train.tfrecord --val_dataset ./data/oxford_hands_test.tfrecord  --classes ./data/oxford_hands.names --num_classes 1 --mode fit --transfer yolo_darknet --batch_size 8 --epochs 10 --weights ./checkpoints/yolov3-tiny.tf --weights_num_classes 80  --tiny --size 288
 
 python detect.py --classes ./data/oxford_hands.names  --num_classes 1 --weights .\checkpoints\yolov3_train_5.tf --tfrecord ./data/oxford_hands_test.tfrecord --tiny
 
 Training starting from VOC:
-python train.py --dataset ./data/oxford_hands_train.tfrecord --val_dataset ./data/oxford_hands_test.tfrecord  --classes ./data/oxford_hands.names --num_classes 1 --mode fit --transfer darknet --batch_size 8 --epochs 10 --weights_num_classes 20 --tiny --size 288 --weights ./checkpoints\works\yolov3_train_7.tf
+python train.py --dataset ./data/oxford_hands_train.tfrecord --val_dataset ./data/oxford_hands_test.tfrecord  --classes ./data/oxford_hands.names --num_classes 1 --mode fit --transfer yolo_darknet --batch_size 8 --epochs 10 --weights_num_classes 20 --tiny --size 288 --weights ./checkpoints\works\yolov3_train_7.tf
 
 
 python detect.py --classes ./data/oxford_hands.names  --num_classes 1 --weights .\checkpoints\hands\yolov3_train_10.tf --tfrecord ./data/oxford_hands_test.tfrecord --tiny
