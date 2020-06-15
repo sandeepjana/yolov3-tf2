@@ -424,3 +424,10 @@ python train.py --dataset ./data/oxford_hands_train.tfrecord --val_dataset ./dat
 
 
 python detect.py --classes ./data/oxford_hands.names  --num_classes 1 --weights .\checkpoints\hands\yolov3_train_10.tf --tfrecord ./data/oxford_hands_test.tfrecord --tiny
+
+
+### With data generator from csv file 
+
+python tools/voc2012.py --data_dir C:\stuff\datasets\pascal\VOCtrainval_11-May-2012\VOCdevkit\VOC2012  --split val --output_file ./data/voc2012_val.tfrecord
+
+python train.py --dataset .\data\voc2012_val.csv --val_dataset .\data\voc2012_val.csv --classes ./data/voc2012.names --num_classes 20 --mode fit --transfer yolo_darknet --batch_size 8 --epochs 10 --weights ./checkpoints/yolov3-tiny.tf --weights_num_classes 80  --tiny

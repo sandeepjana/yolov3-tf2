@@ -76,10 +76,9 @@ class DataGenerator(Sequence):
         box_info = subs[1:]
         assert(len(box_info) % entries_per_box == 0)
         # fixed number of boxes
-        num_boxes = len(box_info) // entries_per_box        
-        if num_boxes > self.max_num_boxes:
-            box_info = box_info[: num_boxes * entries_per_box]
-        else:
+        box_info = box_info[:self.max_num_boxes * entries_per_box]
+        num_boxes = len(box_info) // entries_per_box
+        if num_boxes < self.max_num_boxes:
             pad = self.max_num_boxes - num_boxes 
             box_info = box_info + [0] * (entries_per_box * pad)
 
@@ -105,9 +104,11 @@ def preprocess_image(x, y):
 
 def data_generator(annotation_csv, imsize, is_train=True, python_gen_only=False):
 
+    max_num_boxes = 10
+
     def python_gen():
         im_gen = DataGenerator(annotation_csv, shape=(imsize, imsize, 3),
-            batch_size=1, shuffle=is_train, is_train=is_train)
+            batch_size=1, shuffle=is_train, is_train=is_train, max_num_boxes=max_num_boxes)
         for xy in im_gen:
             yield xy
 
@@ -115,9 +116,9 @@ def data_generator(annotation_csv, imsize, is_train=True, python_gen_only=False)
         return python_gen
 
     dataset = tf.data.Dataset.from_generator(python_gen,   
-        output_types=(tf.uint8, tf.float32))
-        # output_shapes=(tf.TensorShape([imsize, imsize, 3]), tf.TensorShape([10, 5])))
-        # output_shapes is optional?!
+        output_types=(tf.uint8, tf.float32), 
+        output_shapes=(tf.TensorShape([imsize, imsize, 3]), tf.TensorShape([max_num_boxes, 5])))
+        # output_shapes are not optional?!
 
     # can be cached if dataset is small
     # dataset = dataset.cache(annotation_csv.replace('.txt', '.tfrecord'))
