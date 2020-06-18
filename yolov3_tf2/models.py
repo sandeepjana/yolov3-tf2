@@ -53,7 +53,7 @@ def DarknetConv(x, filters, size, strides=1, batch_norm=True, enforce_relu=False
         padding = 'valid'
     x = Conv2D(filters=filters, kernel_size=size,
                strides=strides, padding=padding,
-               use_bias=not batch_norm, kernel_regularizer=l2(0.0005))(x)
+               use_bias=not batch_norm, kernel_regularizer=l2(5e-6))(x)
     if batch_norm:
         x = BatchNormalization()(x)
         x = LeakyReLU(alpha=0.1)(x)
@@ -371,15 +371,22 @@ def YoloLoss(anchors, classes=80, ignore_thresh=0.5):
         obj_loss = binary_crossentropy(true_obj, pred_obj)
         obj_loss = obj_mask * obj_loss + \
             (1 - obj_mask) * ignore_mask * obj_loss
+
         # TODO: use binary_crossentropy instead
-        class_loss = obj_mask * sparse_categorical_crossentropy(
-            true_class_idx, pred_class)
+        if classes > 1:
+            class_loss = obj_mask * sparse_categorical_crossentropy(
+                true_class_idx, pred_class)
 
         # 6. sum over (batch, gridx, gridy, anchors) => (batch, 1)
         xy_loss = tf.reduce_sum(xy_loss, axis=(1, 2, 3))
         wh_loss = tf.reduce_sum(wh_loss, axis=(1, 2, 3))
         obj_loss = tf.reduce_sum(obj_loss, axis=(1, 2, 3))
-        class_loss = tf.reduce_sum(class_loss, axis=(1, 2, 3))
+        if classes > 1:
+            class_loss = tf.reduce_sum(class_loss, axis=(1, 2, 3))
 
-        return xy_loss + wh_loss + obj_loss + class_loss
+        total = xy_loss + wh_loss + obj_loss 
+        if classes > 1:
+            total += class_loss
+        return total
+        
     return yolo_loss

@@ -379,23 +379,23 @@ python tools/voc2012.py --data_dir ..\VOCdevkit\VOC2012  --split val --output_fi
 python convert.py --weights ./data/yolov3-tiny.weights --output ./checkpoints/yolov3-tiny.tf --tiny
 
 Train from imagenet weights with feature extractor (darknet) frozen:
-python train.py --dataset C:\stuff\datasets\pascal\VOCtrainval_11-May-2012\VOCdevkit\voc2012_train.tfrecord --val_dataset C:\stuff\datasets\pascal\VOCtrainval_11-May-2012\VOCdevkit\voc2012_val.tfrecord --classes ./data/voc2012.names --num_classes 20 --mode fit --transfer yolo_darknet --batch_size 8 --epochs 10 --weights ./checkpoints/yolov3-tiny.tf --weights_num_classes 80  --tiny
+python train.py --dataset ..\VOCdevkit\voc2012_train.tfrecord --val_dataset ..\VOCdevkit\voc2012_val.tfrecord --classes ./data/voc2012.names --num_classes 20 --mode fit --transfer yolo_darknet --batch_size 8 --epochs 10 --weights ./checkpoints/yolov3-tiny.tf --weights_num_classes 80  --tiny
 
 Training end to end from a checkpoint: 
 https://github.com/zzh8829/yolov3-tf2/issues/247
 https://github.com/zzh8829/yolov3-tf2/pull/154 (merged in this repo)
-python train.py --dataset C:\stuff\datasets\pascal\VOCtrainval_11-May-2012\VOCdevkit\voc2012_train.tfrecord --val_dataset C:\stuff\datasets\pascal\VOCtrainval_11-May-2012\VOCdevkit\voc2012_val.tfrecord --classes ./data/voc2012.names --num_classes 20 --mode fit --batch_size 8 --epochs 10 --weights ./checkpoints/yolov3_train_4.tf --transfer all --tiny --learning_rate 5e-4
+python train.py --dataset ..\VOCdevkit\voc2012_train.tfrecord --val_dataset ..\VOCdevkit\voc2012_val.tfrecord --classes ./data/voc2012.names --num_classes 20 --mode fit --batch_size 8 --epochs 10 --weights ./checkpoints/yolov3_train_4.tf --transfer all --tiny --learning_rate 5e-4
 
 
-python detect.py --classes ./data/voc2012.names  --num_classes 20  --weights  C:\stuff\coderunner\yolov3-tf2\checkpoints\yolov3_train_7.tf --tfrecord C:\stuff\datasets\pascal\VOCtrainval_11-May-2012\VOCdevkit\voc2012_val.tfrecord --tiny
+python detect.py --classes ./data/voc2012.names  --num_classes 20  --weights  C:\stuff\coderunner\yolov3-tf2\checkpoints\yolov3_train_7.tf --tfrecord ..\VOCdevkit\voc2012_val.tfrecord --tiny
 
-python -m pdb train.py --dataset C:\stuff\datasets\pascal\VOCtrainval_11-May-2012\VOCdevkit\voc2012_train.tfrecord --val_dataset C:\stuff\datasets\pascal\VOCtrainval_11-May-2012\VOCdevkit\voc2012_val.tfrecord --classes ./data/voc2012.names --num_classes 20 --mode eager_fit --batch_size 8 --epochs 10 --weights ./checkpoints/works/yolov3_train_7.tf --weights_num_classes 20  --tiny --learning_rate 1e-6 --transfer fine_tune
+python -m pdb train.py --dataset ..\VOCdevkit\voc2012_train.tfrecord --val_dataset ..\VOCdevkit\voc2012_val.tfrecord --classes ./data/voc2012.names --num_classes 20 --mode eager_fit --batch_size 8 --epochs 10 --weights ./checkpoints/works/yolov3_train_7.tf --weights_num_classes 20  --tiny --learning_rate 1e-6 --transfer fine_tune
 
 ------- one class -------
 
 python convert.py --weights ./data/yolov3-tiny.weights --output ./checkpoints/yolov3-tiny.tf --tiny
 
-python tools/voc2012.py --data_dir C:\stuff\datasets\pascal\VOCtrainval_11-May-2012\VOCdevkit\VOC2012 --split train --output_file ./data/voc2012_train_1class.tfrecord --classes ./data/voc2012_1class.names
+python tools/voc2012.py --data_dir ..\VOCdevkit\VOC2012 --split train --output_file ./data/voc2012_train_1class.tfrecord --classes ./data/voc2012_1class.names
 
 https://github.com/zzh8829/yolov3-tf2/issues/141
 https://github.com/zzh8829/yolov3-tf2/issues/194
@@ -428,6 +428,8 @@ python detect.py --classes ./data/oxford_hands.names  --num_classes 1 --weights 
 
 ### With data generator from csv file 
 
-python tools/voc2012.py --data_dir C:\stuff\datasets\pascal\VOCtrainval_11-May-2012\VOCdevkit\VOC2012  --split val --output_file ./data/voc2012_val.tfrecord
+python tools/voc2012.py --data_dir ..\VOCdevkit\VOC2012  --split val --output_file ./data/voc2012_val.tfrecord
 
-python train.py --dataset .\data\voc2012_val.csv --val_dataset .\data\voc2012_val.csv --classes ./data/voc2012.names --num_classes 20 --mode fit --transfer yolo_darknet --batch_size 8 --epochs 10 --weights ./checkpoints/yolov3-tiny.tf --weights_num_classes 80  --tiny
+python train.py --dataset .\data\voc2012_train.csv --val_dataset .\data\voc2012_val.csv --classes ./data/voc2012.names --num_classes 20 --mode fit --transfer yolo_darknet --batch_size 8 --epochs 10 --weights ./checkpoints/yolov3-tiny.tf --weights_num_classes 80 --tiny --size 288
+
+python detect.py --classes ./data/voc2012.names  --num_classes 20  --weights  .\checkpoints\yolov3_train_10.tf --tfrecord ./data/voc2012_val.tfrecord --tiny --size 288

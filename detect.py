@@ -1,3 +1,4 @@
+import os
 import time
 from absl import app, flags, logging
 from absl.flags import FLAGS
@@ -19,6 +20,29 @@ flags.DEFINE_string('image', './data/girl.png', 'path to input image')
 flags.DEFINE_string('tfrecord', None, 'tfrecord instead of image')
 flags.DEFINE_string('output', './output.jpg', 'path to output image')
 flags.DEFINE_integer('num_classes', 80, 'number of classes in the model')
+flags.DEFINE_boolean('all', False, 'Detection on all images')
+
+
+def detect_single_image(img_raw, output, yolo, class_names, verbose=True):
+    img = tf.expand_dims(img_raw, 0)
+    img = transform_images(img, FLAGS.size)
+
+    t1 = time.time()
+    boxes, scores, classes, nums = yolo(img)
+    t2 = time.time()
+    if verbose:
+        logging.info('time: {}'.format(t2 - t1))
+        logging.info('detections:')
+        for i in range(nums[0]):
+            logging.info('\t{}, {}, {}'.format(class_names[int(classes[0][i])],
+                                            np.array(scores[0][i]),
+                                            np.array(boxes[0][i])))
+
+    img = cv2.cvtColor(img_raw.numpy(), cv2.COLOR_RGB2BGR)
+    img = draw_outputs(img, (boxes, scores, classes, nums), class_names)
+    cv2.imwrite(output, img)
+    if verbose:
+        logging.info('output saved to: {}'.format(FLAGS.output))
 
 
 def main(_argv):
@@ -31,7 +55,7 @@ def main(_argv):
     else:
         yolo = YoloV3(classes=FLAGS.num_classes)
 
-    yolo.load_weights(FLAGS.weights).expect_partial()
+    yolo.load_weights(FLAGS.weights) #.expect_partial()
     logging.info('weights loaded')
 
     class_names = [c.strip() for c in open(FLAGS.classes).readlines()]
@@ -40,30 +64,18 @@ def main(_argv):
     if FLAGS.tfrecord:
         dataset = load_tfrecord_dataset(
             FLAGS.tfrecord, FLAGS.classes, FLAGS.size)
-        dataset = dataset.shuffle(512)
-        img_raw, _label = next(iter(dataset.take(1)))
+        if FLAGS.all:
+            for i, (img_raw, _label) in enumerate(dataset):
+                output = os.path.join(FLAGS.output, str(i).zfill(5) + '.jpg')
+                detect_single_image(img_raw, output, yolo, class_names, verbose=False)
+        else:
+            dataset = dataset.shuffle(512)
+            img_raw, _label = next(iter(dataset.take(1)))
+            detect_single_image(img_raw, FLAGS.output, yolo, class_names)
     else:
         img_raw = tf.image.decode_image(
             open(FLAGS.image, 'rb').read(), channels=3)
-
-    img = tf.expand_dims(img_raw, 0)
-    img = transform_images(img, FLAGS.size)
-
-    t1 = time.time()
-    boxes, scores, classes, nums = yolo(img)
-    t2 = time.time()
-    logging.info('time: {}'.format(t2 - t1))
-
-    logging.info('detections:')
-    for i in range(nums[0]):
-        logging.info('\t{}, {}, {}'.format(class_names[int(classes[0][i])],
-                                           np.array(scores[0][i]),
-                                           np.array(boxes[0][i])))
-
-    img = cv2.cvtColor(img_raw.numpy(), cv2.COLOR_RGB2BGR)
-    img = draw_outputs(img, (boxes, scores, classes, nums), class_names)
-    cv2.imwrite(FLAGS.output, img)
-    logging.info('output saved to: {}'.format(FLAGS.output))
+        detect_single_image(img_raw, FLAGS.output, yolo, class_names)
 
 
 if __name__ == '__main__':

@@ -136,6 +136,7 @@ def main(_argv):
                     model.layers[6].layers[1].set_weights(model_pretrained.layers[6].layers[1].get_weights())
                     model.layers[7].layers[1].set_weights(model_pretrained.layers[7].layers[1].get_weights())
                     # should I freeze batch_norm as well?
+
     # no transfer learning
     else:
         pass
@@ -220,11 +221,11 @@ def main(_argv):
                       run_eagerly=(FLAGS.mode == 'eager_fit'))
 
         callbacks = [
-            ReduceLROnPlateau(verbose=1),
+            ReduceLROnPlateau(patience=2, min_lr=5e-6, verbose=1),
             EarlyStopping(patience=3, verbose=1),
-            ModelCheckpoint('checkpoints/yolov3_train_{epoch}.tf',
-                            verbose=1, save_weights_only=True),
-            TensorBoard(log_dir='logs')
+            ModelCheckpoint('checkpoints/yolov3_train_{epoch}.h5',
+                            verbose=1, save_weights_only=True)
+            # TensorBoard(log_dir='logs')
         ]
 
         history = model.fit(train_dataset,
