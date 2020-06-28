@@ -425,6 +425,7 @@ python train.py --dataset ./data/oxford_hands_train.tfrecord --val_dataset ./dat
 
 python detect.py --classes ./data/oxford_hands.names  --num_classes 1 --weights .\checkpoints\hands\yolov3_train_10.tf --tfrecord ./data/oxford_hands_test.tfrecord --tiny
 
+python detect.py --classes ./data/oxford_hands.names  --num_classes 1 --weights .\checkpoints\hands\yolov3_train_100.h5 --tfrecord ./data/oxford_hands_test.tfrecord --tiny --output output --all
 
 ### With data generator from csv file 
 
@@ -433,3 +434,8 @@ python tools/voc2012.py --data_dir ..\VOCdevkit\VOC2012  --split val --output_fi
 python train.py --dataset .\data\voc2012_train.csv --val_dataset .\data\voc2012_val.csv --classes ./data/voc2012.names --num_classes 20 --mode fit --transfer yolo_darknet --batch_size 8 --epochs 10 --weights ./checkpoints/yolov3-tiny.tf --weights_num_classes 80 --tiny --size 288
 
 python detect.py --classes ./data/voc2012.names  --num_classes 20  --weights  .\checkpoints\yolov3_train_10.tf --tfrecord ./data/voc2012_val.tfrecord --tiny --size 288
+
+
+### Yolo Nano
+
+python train.py --nano --dataset ./data/oxford_hands_train.tfrecord --val_dataset ./data/oxford_hands_test.tfrecord  --classes ./data/oxford_hands.names --num_classes 1 --mode fit --transfer yolo_conv --freeze yolo_conv --batch_size 8 --epochs 100 --weights .\checkpoints\hands\yolov3_tiny_train_100_0.07.h5  --pretrained tiny --learning_rate 1e-3

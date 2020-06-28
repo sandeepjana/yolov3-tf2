@@ -76,6 +76,14 @@ def transform_images(x_train, size):
     return x_train
 
 
+def augment_images(x, y):
+    x = tf.image.random_saturation(x, 0.9, 1.1)
+    x = tf.image.random_brightness(x, 0.05)
+    noise = tf.random.normal(shape=tf.shape(x), mean=0.0, stddev=0.02, dtype=tf.float32)
+    x = x + noise
+    return x, y
+
+
 # https://github.com/tensorflow/models/blob/master/research/object_detection/g3doc/using_your_own_dataset.md#conversion-script-outline-conversion-script-outline
 # Commented out fields are not required in our project
 IMAGE_FEATURE_MAP = {

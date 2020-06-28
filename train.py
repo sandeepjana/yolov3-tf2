@@ -15,6 +15,10 @@ from yolov3_tf2.models import (
     yolo_anchors, yolo_anchor_masks,
     yolo_tiny_anchors, yolo_tiny_anchor_masks
 )
+from yolov3_tf2.yolo_nano import(
+    YoloV3Nano,
+    yolo_nano_anchors, yolo_nano_anchor_masks
+)
 from yolov3_tf2.utils import freeze_all
 import yolov3_tf2.dataset as dataset
 from yolov3_tf2.data_generator import data_generator
@@ -23,6 +27,8 @@ from yolov3_tf2.data_generator import data_generator
 flags.DEFINE_string('dataset', '', 'path to dataset')
 flags.DEFINE_string('val_dataset', '', 'path to validation dataset')
 flags.DEFINE_boolean('tiny', False, 'yolov3 or yolov3-tiny')
+flags.DEFINE_boolean('nano', False, 'nano')
+flags.DEFINE_string('pretrained', 'none', 'model for weights')
 flags.DEFINE_string('weights', './checkpoints/yolov3.tf',
                     'path to weights file')
 flags.DEFINE_string('classes', './data/coco.names', 'path to classes file')
@@ -71,12 +77,13 @@ def get_dataset(anchors, anchor_masks, is_train=True):
             dataset.transform_targets(y, anchors, anchor_masks, FLAGS.size)))
     else:
         if is_train:
-            d = d.shuffle(buffer_size=512)
+            d = d.shuffle(buffer_size=2048)
         d = d.batch(FLAGS.batch_size)
         d = d.map(lambda x, y: (
             dataset.transform_images(x, FLAGS.size),
             dataset.transform_targets(y, anchors, anchor_masks, FLAGS.size)))
 
+    d = d.map(lambda x, y: dataset.augment_images(x, y))
     d = d.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
     return d
 
@@ -86,11 +93,19 @@ def main(_argv):
     if len(physical_devices) > 0:
         tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
+    flags_pretrained = 'full'
     if FLAGS.tiny:
+        flags_pretrained = 'tiny'
         model = YoloV3Tiny(FLAGS.size, training=True,
                            classes=FLAGS.num_classes)
         anchors = yolo_tiny_anchors
         anchor_masks = yolo_tiny_anchor_masks
+    elif FLAGS.nano:
+        flags_pretrained = 'nano'
+        model = YoloV3Nano(FLAGS.size, training=True,
+                           classes=FLAGS.num_classes)
+        anchors = yolo_nano_anchors
+        anchor_masks = yolo_nano_anchor_masks        
     else:
         model = YoloV3(FLAGS.size, training=True, classes=FLAGS.num_classes)
         anchors = yolo_anchors
@@ -108,8 +123,12 @@ def main(_argv):
         # else, we need only some of the weights
         # create appropriate model_pretrained, load all weights and copy the ones we need
         else:
-            if FLAGS.tiny:
+            if FLAGS.pretrained != 'none':
+                flags_pretrained = FLAGS.pretrained
+            if flags_pretrained == 'tiny':
                 model_pretrained = YoloV3Tiny(FLAGS.size, training=True, classes=FLAGS.weights_num_classes or FLAGS.num_classes)
+            elif flags_pretrained == 'nano':
+                model_pretrained = YoloV3Nano(FLAGS.size, training=True, classes=FLAGS.weights_num_classes or FLAGS.num_classes)
             else:
                 model_pretrained = YoloV3(FLAGS.size, training=True, classes=FLAGS.weights_num_classes or FLAGS.num_classes)
             # load pretrained weights
@@ -130,6 +149,8 @@ def main(_argv):
                     model.layers[4].layers[1].set_weights(model_pretrained.layers[4].layers[1].get_weights())
                     model.layers[5].layers[1].set_weights(model_pretrained.layers[5].layers[1].get_weights())
                     # should I freeze batch_norm as well?
+                elif FLAGS.nano:
+                    raise NotImplementedError()
                 else:
                     # get and set the weights of the appropriate layers
                     model.layers[5].layers[1].set_weights(model_pretrained.layers[5].layers[1].get_weights())
@@ -224,7 +245,8 @@ def main(_argv):
             ReduceLROnPlateau(patience=2, min_lr=5e-6, verbose=1),
             EarlyStopping(patience=3, verbose=1),
             ModelCheckpoint('checkpoints/yolov3_train_{epoch}.h5',
-                            verbose=1, save_weights_only=True)
+                            # save_weights_only=True,
+                            verbose=1, save_best_only=True)
             # TensorBoard(log_dir='logs')
         ]
 

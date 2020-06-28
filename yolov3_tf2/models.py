@@ -390,3 +390,18 @@ def YoloLoss(anchors, classes=80, ignore_thresh=0.5):
         return total
         
     return yolo_loss
+
+
+def save_model_weights():
+    m = YoloV3Tiny(classes=1)
+    m.load_weights('../checkpoints/hands/yolov3_train_50.h5')
+    m.save('../checkpoints/hands/no-state.h5', include_optimizer=False)    
+
+if __name__ == "__main__":
+    from absl import app
+    try:
+        app.run(save_model_weights)
+    except SystemExit:
+        pass
+
+

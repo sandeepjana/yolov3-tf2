@@ -66,6 +66,8 @@ def main(_argv):
             FLAGS.tfrecord, FLAGS.classes, FLAGS.size)
         if FLAGS.all:
             for i, (img_raw, _label) in enumerate(dataset):
+                if i % 100 == 0: 
+                    print('Processing {}'.format(i))
                 output = os.path.join(FLAGS.output, str(i).zfill(5) + '.jpg')
                 detect_single_image(img_raw, output, yolo, class_names, verbose=False)
         else:
