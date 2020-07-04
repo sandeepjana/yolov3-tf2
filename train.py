@@ -60,7 +60,11 @@ flags.DEFINE_integer('weights_num_classes', None, 'specify num class for `weight
 
 
 def get_dataset(anchors, anchor_masks, is_train=True):
-    file = FLAGS.dataset
+    if is_train:
+        file = FLAGS.dataset
+    else:
+        file = FLAGS.val_dataset
+        
     from_generator = False
     
     if '.tfrecord' in file:

@@ -17,7 +17,7 @@ from tensorflow.keras.layers import (
     ZeroPadding2D,
     BatchNormalization,
 )
-from tensorflow.keras.regularizers import l2
+from tensorflow.keras.regularizers import l2,l1
 from tensorflow.keras.losses import (
     binary_crossentropy,
     sparse_categorical_crossentropy
@@ -55,6 +55,8 @@ def DarknetConv(x, filters, size, strides=1, batch_norm=True, enforce_relu=False
                strides=strides, padding=padding,
                use_bias=not batch_norm, kernel_regularizer=l2(5e-6))(x)
     if batch_norm:
+        # sparsity constraint (didnt really work)
+        # x = BatchNormalization(gamma_regularizer=l1(1e-4))(x)
         x = BatchNormalization()(x)
         x = LeakyReLU(alpha=0.1)(x)
     elif enforce_relu:
