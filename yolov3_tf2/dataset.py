@@ -2,6 +2,67 @@ import tensorflow as tf
 from absl.flags import FLAGS
 
 @tf.function
+def transform_targets_for_output_more_anchors(y_true, grid_size, anchor_idxs, iou):
+    # y_true: (N, boxes, (x1, y1, x2, y2, class, best_anchor))
+    N = tf.shape(y_true)[0]
+
+    # y_true_out: (N, grid, grid, anchors, [x, y, w, h, obj, class])
+    y_true_out = tf.zeros(
+        (N, grid_size, grid_size, tf.shape(anchor_idxs)[0], 6))
+
+    anchor_idxs = tf.cast(anchor_idxs, tf.int32)
+
+    indexes = tf.TensorArray(tf.int32, 0, dynamic_size=True)
+    updates = tf.TensorArray(tf.float32, 0, dynamic_size=True)
+    idx = 0
+    for i in tf.range(N):
+        for j in tf.range(tf.shape(y_true)[1]):
+            if tf.equal(y_true[i][j][2], 0):
+                continue
+            # na = number of all anchors
+            # (na, )
+            iou_sample = iou[i][j]
+            # (1, )
+            max_value = tf.expand_dims(tf.reduce_max(iou_sample), -1)
+            # (na, )
+            one_hot_max = tf.equal(iou_sample, max_value)
+            # (na, )
+            overlap = iou_sample > 0.5 * max_value
+            # (na, )
+            good = tf.math.logical_or(one_hot_max, overlap)
+            # (number of selected anchors, )
+            good_idxs = tf.reshape(tf.where(good), [-1])
+            # for each selected anchor
+            for good_idx in good_idxs:
+                # if it exists in the current set of anchor indices
+                anchor_eq = tf.equal(anchor_idxs, tf.cast(good_idx, tf.int32))
+                if not tf.reduce_any(anchor_eq):
+                    continue
+                # index in the current set of masks
+                idx_in_mask = tf.where(anchor_eq)
+                idx_in_mask = tf.cast(idx_in_mask[0][0], tf.int32)
+                box = y_true[i][j][0:4]
+                box_xy = (y_true[i][j][0:2] + y_true[i][j][2:4]) / 2
+
+                grid_xy = tf.cast(box_xy // (1/grid_size), tf.int32)
+
+                # grid[y][x][anchor] = (tx, ty, bw, bh, obj, class)
+                indexes = indexes.write(
+                    idx, [i, grid_xy[1], grid_xy[0], idx_in_mask])
+                updates = updates.write(
+                    idx, [box[0], box[1], box[2], box[3], 1, y_true[i][j][4]])
+                idx += 1
+
+    # tf.print(indexes.stack())
+    # tf.print(updates.stack())
+    if indexes.size() == 0:
+        return y_true_out
+    else:
+        return tf.tensor_scatter_nd_update(
+            y_true_out, indexes.stack(), updates.stack())        
+
+
+@tf.function
 def transform_targets_for_output(y_true, grid_size, anchor_idxs):
     # y_true: (N, boxes, (x1, y1, x2, y2, class, best_anchor))
     N = tf.shape(y_true)[0]
@@ -12,8 +73,8 @@ def transform_targets_for_output(y_true, grid_size, anchor_idxs):
 
     anchor_idxs = tf.cast(anchor_idxs, tf.int32)
 
-    indexes = tf.TensorArray(tf.int32, 1, dynamic_size=True)
-    updates = tf.TensorArray(tf.float32, 1, dynamic_size=True)
+    indexes = tf.TensorArray(tf.int32, 0, dynamic_size=True)
+    updates = tf.TensorArray(tf.float32, 0, dynamic_size=True)
     idx = 0
     for i in tf.range(N):
         for j in tf.range(tf.shape(y_true)[1]):
@@ -38,9 +99,11 @@ def transform_targets_for_output(y_true, grid_size, anchor_idxs):
 
     # tf.print(indexes.stack())
     # tf.print(updates.stack())
-
-    return tf.tensor_scatter_nd_update(
-        y_true_out, indexes.stack(), updates.stack())
+    if indexes.size() == 0:
+        return y_true_out
+    else:
+        return tf.tensor_scatter_nd_update(
+            y_true_out, indexes.stack(), updates.stack())        
 
 
 def transform_targets(y_train, anchors, anchor_masks, size):
@@ -63,8 +126,8 @@ def transform_targets(y_train, anchors, anchor_masks, size):
     y_train = tf.concat([y_train, anchor_idx], axis=-1)
 
     for anchor_idxs in anchor_masks:
-        y_outs.append(transform_targets_for_output(
-            y_train, grid_size, anchor_idxs))
+        y_outs.append(transform_targets_for_output_more_anchors(
+            y_train, grid_size, anchor_idxs, iou))
         grid_size *= 2
 
     return tuple(y_outs)
@@ -77,9 +140,10 @@ def transform_images(x_train, size):
 
 
 def augment_images(x, y):
-    x = tf.image.random_saturation(x, 0.9, 1.1)
-    x = tf.image.random_brightness(x, 0.05)
-    noise = tf.random.normal(shape=tf.shape(x), mean=0.0, stddev=0.02, dtype=tf.float32)
+    x = tf.image.random_hue(x, 0.1)
+    x = tf.image.random_saturation(x, 0.8, 1.2)
+    x = tf.image.random_brightness(x, 0.1)
+    noise = tf.random.normal(shape=tf.shape(x), mean=0.0, stddev=0.04, dtype=tf.float32)
     x = x + noise
     return x, y
 
@@ -150,3 +214,18 @@ def load_fake_dataset():
     y_train = tf.expand_dims(y_train, axis=0)
 
     return tf.data.Dataset.from_tensor_slices((x_train, y_train))
+
+
+if __name__ == "__main__":
+    import numpy as np 
+    anchors = np.array([(10, 14), (23, 27), (37, 58),
+                                (81, 82), (135, 169),  (344, 319)],
+                                np.float32) / 416
+    anchor_masks = np.array([[3, 4, 5], [0, 1, 2]])
+
+    d = load_tfrecord_dataset('../data/voc2012_val.tfrecord',
+        '../data/voc2012.names', 192)
+    d = d.batch(1)
+        
+    for x, y in d:
+        transform_targets(y, anchors, anchor_masks, 192)
